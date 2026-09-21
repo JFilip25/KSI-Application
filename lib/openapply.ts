@@ -17,11 +17,16 @@ type OpenApplyResult = {
 let tokenCache: { token: string; expiresAt: number } | null = null;
 
 function config() {
+  const dryRunValue = process.env.OPENAPPLY_DRY_RUN
+    ?.trim()
+    .replace(/^["']|["']$/g, "")
+    .toLowerCase();
+
   return {
     baseUrl: process.env.OPENAPPLY_BASE_URL?.replace(/\/$/, ""),
     clientId: process.env.OPENAPPLY_CLIENT_ID,
     clientSecret: process.env.OPENAPPLY_CLIENT_SECRET,
-    dryRun: process.env.OPENAPPLY_DRY_RUN !== "false",
+    dryRun: dryRunValue !== "false",
   };
 }
 
