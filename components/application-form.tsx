@@ -435,7 +435,7 @@ export function ApplicationForm() {
                     <div className={`placement ${placement ? "available" : "unavailable"}`}>
                       <span className="placement-label">Suggested placement</span>
                       <strong>{placement ? placement.group : child.dateOfBirth ? "Admissions review needed" : "Enter date of birth"}</strong>
-                      {placement && <small>Age {placement.ageBand} in {draft.academicYear.replace("-", "–")}</small>}
+                      {placement && <small>{placement.ageOnSeptemberFirst} years old on 1 September {draft.academicYear.slice(0, 4)}</small>}
                       <p>This is an age-based guide. Final placement depends on records, readiness and the admissions review.</p>
                     </div>
                   </section>
