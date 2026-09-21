@@ -42,7 +42,13 @@ function validApplication() {
     legalResponsibility: "joint",
     parent2Consent: "signing-now",
     courtRestrictions: "none",
-    declarations: { accuracy: true, authority: true, privacy: true },
+    declarations: {
+      accuracy: true,
+      authority: true,
+      privacy: true,
+      googleEducation: true,
+      marketingConsent: "no",
+    },
     applicationReference: "7f83283e-4042-4eb7-9706-0bf901f14045",
     startedAt: 1_700_000_000_000,
     website: "",
@@ -68,5 +74,17 @@ describe("ApplicationSchema", () => {
       legalResponsibility: "sole-parent-1",
       parent2Consent: "evidence-exception",
     }).success).toBe(true);
+  });
+
+  it("requires Google Education consent and a marketing choice", () => {
+    const application = validApplication();
+    expect(ApplicationSchema.safeParse({
+      ...application,
+      declarations: {
+        ...application.declarations,
+        googleEducation: false,
+        marketingConsent: "",
+      },
+    }).success).toBe(false);
   });
 });
