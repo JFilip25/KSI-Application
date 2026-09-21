@@ -10,7 +10,7 @@ A focused, mobile-first application for Knightsbridge Schools International Mont
 - Lets one family apply for up to five siblings without repeating parent details.
 - Uses structured choices for learning, medical, attendance and disciplinary information.
 - Routes joint, sole, restricted, deceased and uncontactable-parent situations without asking families to upload evidence at the application stage.
-- Defers reports, identity/custody documents and operational consents until after a conditional offer.
+- Captures mandatory Google Workspace for Education consent and a separate Yes/No marketing choice.
 - Saves an in-progress draft only in the family's browser.
 - Keeps OpenApply credentials and API traffic on the server.
 
@@ -84,7 +84,9 @@ Example:
     "family_situation": "22346",
     "legal_responsibility": "22347",
     "parent_2_consent": "22348",
-    "court_restrictions": "22349"
+    "court_restrictions": "22349",
+    "google_education_consent": "22350",
+    "marketing_consent": "22351"
   }
 }
 ```
