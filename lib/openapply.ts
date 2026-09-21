@@ -232,6 +232,8 @@ export async function pushApplication(application: ApplicationData): Promise<Ope
     legal_responsibility: application.legalResponsibility,
     parent_2_consent: application.parent2Consent,
     court_restrictions: application.courtRestrictions,
+    google_education_consent: application.declarations.googleEducation ? "yes" : "no",
+    marketing_consent: application.declarations.marketingConsent,
   });
   if (parent2Id) await linkParent(parent2Id, studentIds);
 
