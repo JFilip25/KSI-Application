@@ -226,6 +226,16 @@ input:invalid:not(:focus):not(:placeholder-shown) { border-color: var(--red); }
 .declaration:last-child { border-bottom: 1px solid #514c7b; }
 .declaration .check-box { top: 17px; left: 17px; }
 .declaration.checked { color: white; }
+.marketing-consent { margin: 0; padding: 18px 18px 16px; border: 0; border-top: 1px solid #514c7b; border-bottom: 1px solid #514c7b; }
+.marketing-consent legend { width: 100%; padding: 0; color: #dcd9ee; font-size: 13px; line-height: 1.55; }
+.marketing-options { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 9px; }
+.marketing-options label { position: relative; min-height: 38px; padding: 9px 14px 9px 39px; border: 1px solid #77729b; border-radius: 2px; color: #e9e7f3; display: inline-flex; align-items: center; font-size: 12px; line-height: 1.3; cursor: pointer; transition: border-color .18s ease, background .18s ease; }
+.marketing-options label:hover { border-color: #9bdaf4; }
+.marketing-options label.selected { border-color: #70c6ec; background: rgba(29,133,200,.25); color: white; }
+.marketing-options input { position: absolute; opacity: 0; pointer-events: none; }
+.marketing-options .radio-dot { left: 13px; border-color: #aaa6c2; }
+.marketing-options label.selected .radio-dot { border: 5px solid #70c6ec; }
+.marketing-options label:has(input:focus-visible) { outline: 3px solid rgba(112,198,236,.32); outline-offset: 2px; }
 
 .actions { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; }
 .button { min-width: 150px; min-height: 50px; padding: 13px 21px; border: 1px solid var(--navy); border-radius: 2px; display: inline-flex; align-items: center; justify-content: center; gap: 12px; font-weight: 800; font-size: 13px; transition: background .15s, color .15s, transform .15s; }
