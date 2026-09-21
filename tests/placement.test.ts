@@ -10,6 +10,13 @@ describe("getSuggestedPlacement", () => {
   it("advances the same child one group for 2027–28", () => {
     expect(getSuggestedPlacement("2018-10-12", "2026-2027")?.group).toBe("Year 3");
     expect(getSuggestedPlacement("2018-10-12", "2027-2028")?.group).toBe("Year 4");
+    expect(getSuggestedPlacement("2018-10-12", "2027-2028")?.ageOnSeptemberFirst).toBe(8);
+  });
+
+  it("shows completed age on 1 September of the application year", () => {
+    expect(getSuggestedPlacement("2018-09-01", "2027-2028")?.ageOnSeptemberFirst).toBe(9);
+    expect(getSuggestedPlacement("2018-09-02", "2027-2028")?.ageOnSeptemberFirst).toBe(8);
+    expect(getSuggestedPlacement("2018-08-31", "2027-2028")?.ageOnSeptemberFirst).toBe(9);
   });
 
   it("matches the youngest and oldest listed ranges", () => {
