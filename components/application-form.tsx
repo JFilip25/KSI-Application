@@ -579,16 +579,26 @@ export function ApplicationForm() {
                 <Declaration checked={draft.declarations.authority} onChange={(authority) => patchDraft("declarations", { ...draft.declarations, authority })}>I confirm that I have parental responsibility or legal authority to make this application, and that the consent route selected above is correct.</Declaration>
                 <Declaration checked={draft.declarations.privacy} onChange={(privacy) => patchDraft("declarations", { ...draft.declarations, privacy })}>I understand that KSI Montenegro will process this information, including learning and health information, to assess the application and safeguard the child.</Declaration>
                 <Declaration checked={draft.declarations.googleEducation} onChange={(googleEducation) => patchDraft("declarations", { ...draft.declarations, googleEducation })}>I consent to my child using Google Workspace for Education services provided by KSI Montenegro for teaching, learning, communication and collaboration. I understand that this consent is required for enrolment.</Declaration>
-                <ChoiceGroup
-                  label="I consent to my child being included in KSI Montenegro marketing activities, including school photography, video, publications, the school website, social media and advertisements."
-                  value={draft.declarations.marketingConsent}
-                  onChange={(marketingConsent) => patchDraft("declarations", { ...draft.declarations, marketingConsent })}
-                  compact
-                  options={[
-                    { value: "yes", label: "Yes, I consent" },
-                    { value: "no", label: "No, I do not consent" },
-                  ]}
-                />
+                <fieldset className="marketing-consent">
+                  <legend>I consent to my child being included in KSI Montenegro marketing activities, including school photography, video, publications, the school website, social media and advertisements.</legend>
+                  <div className="marketing-options">
+                    {[
+                      { value: "yes", label: "Yes, I consent" },
+                      { value: "no", label: "No, I do not consent" },
+                    ].map((option) => (
+                      <label className={draft.declarations.marketingConsent === option.value ? "selected" : ""} key={option.value}>
+                        <input
+                          type="radio"
+                          name="marketing-consent"
+                          checked={draft.declarations.marketingConsent === option.value}
+                          onChange={() => patchDraft("declarations", { ...draft.declarations, marketingConsent: option.value as "yes" | "no" })}
+                        />
+                        <span className="radio-dot" />
+                        <span>{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
               </section>
             </>
           )}
