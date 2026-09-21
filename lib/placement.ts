@@ -22,6 +22,7 @@ const GROUPS = [
 export type Placement = {
   group: (typeof GROUPS)[number];
   ageBand: string;
+  ageOnSeptemberFirst: number;
   dateRange: string;
 };
 
@@ -58,9 +59,13 @@ export function getSuggestedPlacement(
   if (groupIndex < 0 || groupIndex >= GROUPS.length) return null;
 
   const lowerAge = groupIndex + 3;
+  const ageOnSeptemberFirst = academicStart - birthYear - (
+    birthMonth > 9 || (birthMonth === 9 && birthDay > 1) ? 1 : 0
+  );
   return {
     group: GROUPS[groupIndex],
     ageBand: `${lowerAge}–${lowerAge + 1}`,
+    ageOnSeptemberFirst,
     dateRange: `${isoDate(cohortStart, 9, 1)} to ${isoDate(cohortStart + 1, 8, 31)}`,
   };
 }
