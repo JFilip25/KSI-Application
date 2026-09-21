@@ -50,6 +50,8 @@ export const ApplicationSchema = z.object({
     accuracy: z.literal(true),
     authority: z.literal(true),
     privacy: z.literal(true),
+    googleEducation: z.literal(true),
+    marketingConsent: z.enum(["yes", "no"]),
   }),
   applicationReference: z.string().uuid(),
   startedAt: z.number().int().positive(),
