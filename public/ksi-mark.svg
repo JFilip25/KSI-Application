@@ -1,0 +1,12 @@
+<svg width="246" height="68" viewBox="0 0 246 68" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Knightsbridge Schools International Montenegro</title>
+  <desc id="desc">KSI shield and school wordmark</desc>
+  <path d="M2 5C13 2 24 2 35 5V31C35 45 24 55 18.5 58C13 55 2 45 2 31V5Z" fill="#AD1F6F"/>
+  <path d="M18.5 3.5C24.1 3.5 29.6 4 35 5V31C35 45 24 55 18.5 58V3.5Z" fill="#1D85C8"/>
+  <path d="M2 5C13 2 24 2 35 5V31C35 45 24 55 18.5 58C13 55 2 45 2 31V5Z" stroke="white" stroke-width="1.2"/>
+  <text x="6" y="35" fill="white" font-family="Constantia, Georgia, serif" font-size="22">K</text>
+  <text x="21" y="35" fill="white" font-family="Constantia, Georgia, serif" font-size="22">S</text>
+  <text x="47" y="24" fill="#AD1F6F" font-family="Constantia, Georgia, serif" font-size="17" letter-spacing=".25">KNIGHTSBRIDGE</text>
+  <text x="47" y="42" fill="#AD1F6F" font-family="Constantia, Georgia, serif" font-size="16" letter-spacing=".65">SCHOOLS</text>
+  <text x="47" y="57" fill="#1D85C8" font-family="Constantia, Georgia, serif" font-size="10" letter-spacing="1.3">INTERNATIONAL • MONTENEGRO</text>
+</svg>
