@@ -9,7 +9,13 @@ import { getSuggestedPlacement, type AcademicYear } from "@/lib/placement";
 type Child = ApplicationData["children"][number];
 type Parent = ApplicationData["parent1"];
 type Draft = Omit<ApplicationData, "declarations"> & {
-  declarations: { accuracy: boolean; authority: boolean; privacy: boolean };
+  declarations: {
+    accuracy: boolean;
+    authority: boolean;
+    privacy: boolean;
+    googleEducation: boolean;
+    marketingConsent: "yes" | "no" | "";
+  };
 };
 
 const STEPS = [
@@ -69,7 +75,13 @@ function initialDraft(): Draft {
     parent2: newParent(),
     parent2Consent: "signing-now",
     courtRestrictions: "none",
-    declarations: { accuracy: false, authority: false, privacy: false },
+    declarations: {
+      accuracy: false,
+      authority: false,
+      privacy: false,
+      googleEducation: false,
+      marketingConsent: "",
+    },
     applicationReference: "00000000-0000-4000-8000-000000000002",
     startedAt: Date.now(),
     website: "",
@@ -213,7 +225,20 @@ export function ApplicationForm() {
     const timer = window.setTimeout(() => {
       try {
         const saved = localStorage.getItem("ksi-application-draft-v1");
-        if (saved) setDraft(JSON.parse(saved) as Draft);
+        if (saved) {
+          const parsed = JSON.parse(saved) as Draft;
+          const savedDeclarations = parsed.declarations as Partial<Draft["declarations"]>;
+          setDraft({
+            ...parsed,
+            declarations: {
+              accuracy: savedDeclarations.accuracy ?? false,
+              authority: savedDeclarations.authority ?? false,
+              privacy: savedDeclarations.privacy ?? false,
+              googleEducation: savedDeclarations.googleEducation ?? false,
+              marketingConsent: savedDeclarations.marketingConsent ?? "",
+            },
+          });
+        }
         else {
           setDraft((current) => ({
             ...current,
@@ -260,7 +285,13 @@ export function ApplicationForm() {
     if (step === 3) {
       return draft.children.every((child) => child.learningNeeds.length && child.medicalNeeds.length);
     }
-    if (step === 4) return Object.values(draft.declarations).every(Boolean);
+    if (step === 4) {
+      return draft.declarations.accuracy &&
+        draft.declarations.authority &&
+        draft.declarations.privacy &&
+        draft.declarations.googleEducation &&
+        Boolean(draft.declarations.marketingConsent);
+    }
     return true;
   }
 
@@ -305,9 +336,9 @@ export function ApplicationForm() {
           <div className="success-icon">✓</div>
           <p className="eyebrow">Application received</p>
           <h1>Thank you. We’ll take it from here.</h1>
-          <p>Admissions will review the information and contact your family about the next step. Documents and operational permissions will be requested only after a conditional offer.</p>
+          <p>Admissions will review your application and contact your family about the next step.</p>
           <div className="reference"><span>Reference</span><strong>{submitted.reference.split("-")[0].toUpperCase()}</strong></div>
-          {submitted.dryRun && <Notice tone="raspberry"><strong>Test mode:</strong> this submission was validated but was not sent to OpenApply.</Notice>}
+          {submitted.dryRun && <Notice tone="raspberry"><strong>Test submission:</strong> the application was validated successfully. Live OpenApply submission is not enabled for this deployment.</Notice>}
         </div>
       </main>
     );
@@ -367,7 +398,6 @@ export function ApplicationForm() {
                 <div><span>02</span><strong>Parent authority</strong><small>Contact and consent pathway</small></div>
                 <div><span>03</span><strong>Support needs</strong><small>Structured learning and wellbeing choices</small></div>
               </div>
-              <Notice><strong>No documents today.</strong> Reports, identity documents, custody evidence and operational permissions are requested only after a conditional offer.</Notice>
             </>
           )}
 
@@ -548,8 +578,18 @@ export function ApplicationForm() {
                 <Declaration checked={draft.declarations.accuracy} onChange={(accuracy) => patchDraft("declarations", { ...draft.declarations, accuracy })}>I confirm that the information is accurate and complete to the best of my knowledge.</Declaration>
                 <Declaration checked={draft.declarations.authority} onChange={(authority) => patchDraft("declarations", { ...draft.declarations, authority })}>I confirm that I have parental responsibility or legal authority to make this application, and that the consent route selected above is correct.</Declaration>
                 <Declaration checked={draft.declarations.privacy} onChange={(privacy) => patchDraft("declarations", { ...draft.declarations, privacy })}>I understand that KSI Montenegro will process this information, including learning and health information, to assess the application and safeguard the child.</Declaration>
+                <Declaration checked={draft.declarations.googleEducation} onChange={(googleEducation) => patchDraft("declarations", { ...draft.declarations, googleEducation })}>I consent to my child using Google Workspace for Education services provided by KSI Montenegro for teaching, learning, communication and collaboration. I understand that this consent is required for enrolment.</Declaration>
+                <ChoiceGroup
+                  label="I consent to my child being included in KSI Montenegro marketing activities, including school photography, video, publications, the school website, social media and advertisements."
+                  value={draft.declarations.marketingConsent}
+                  onChange={(marketingConsent) => patchDraft("declarations", { ...draft.declarations, marketingConsent })}
+                  compact
+                  options={[
+                    { value: "yes", label: "Yes, I consent" },
+                    { value: "no", label: "No, I do not consent" },
+                  ]}
+                />
               </section>
-              <Notice><strong>Not included at this stage:</strong> promotional photos, field trips, transport, Google services and other operational permissions. Those decisions are presented separately after a conditional offer.</Notice>
             </>
           )}
 
@@ -557,7 +597,6 @@ export function ApplicationForm() {
             {step > 0 ? <button type="button" className="button secondary" onClick={() => { setError(""); setStep(step - 1); }}><Arrow direction="left" />Back</button> : <span />}
             {step < STEPS.length - 1 ? <button type="button" className="button primary" onClick={next}>Continue<Arrow /></button> : <button type="button" className="button primary submit" onClick={submit} disabled={submitting}>{submitting ? "Submitting…" : "Submit application"}<Arrow /></button>}
           </div>
-          <p className="privacy-footnote">Sensitive information is sent only when you submit. Your in-progress draft stays in this browser.</p>
         </div>
       </main>
     </div>
