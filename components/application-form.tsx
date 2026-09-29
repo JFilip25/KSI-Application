@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import type { ApplicationData } from "@/lib/schema";
+import { needsVaccinationRecords, requiredDocuments, type DocumentList } from "@/lib/documents";
+import { NEXT_STEPS, paymentSubject } from "@/lib/next-steps";
 import { getCountries, LANGUAGES, LEARNING_SUPPORT, MEDICAL_NEEDS } from "@/lib/options";
 import { getSuggestedPlacement, type AcademicYear } from "@/lib/placement";
 
@@ -17,6 +19,20 @@ type Draft = Omit<ApplicationData, "declarations"> & {
     marketingConsent: "yes" | "no" | "";
   };
 };
+
+/** Captured at submission, because the draft is cleared once the application is sent. */
+type Submitted = {
+  reference: string;
+  dryRun: boolean;
+  emailed: boolean;
+  email: string;
+  academicYear: AcademicYear;
+  documents: DocumentList;
+  children: { name: string; group: string | null }[];
+};
+
+const VACCINATION_ACKNOWLEDGEMENT =
+  "I acknowledge that I have not provided KSI Montenegro with my child’s vaccination records, and I understand that the family may be fined by the Montenegrin authorities.";
 
 const STEPS = [
   ["Start", "Academic year"],
@@ -51,6 +67,8 @@ function newChild(id = fixedUuid): Child {
     repeatedGrade: "no",
     seriousDiscipline: "no",
     disclosureNote: "",
+    vaccinationRecords: "will-provide",
+    vaccinationAcknowledgement: false,
   };
 }
 
@@ -219,7 +237,7 @@ export function ApplicationForm() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState<{ reference: string; dryRun: boolean } | null>(null);
+  const [submitted, setSubmitted] = useState<Submitted | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -230,6 +248,8 @@ export function ApplicationForm() {
           const savedDeclarations = parsed.declarations as Partial<Draft["declarations"]>;
           setDraft({
             ...parsed,
+            // Drafts saved by an earlier version lack newer child fields such as vaccination records.
+            children: parsed.children.map((child) => ({ ...newChild(child.id), ...child })),
             declarations: {
               accuracy: savedDeclarations.accuracy ?? false,
               authority: savedDeclarations.authority ?? false,
@@ -283,7 +303,14 @@ export function ApplicationForm() {
       return isParentComplete(draft.parent1) && (draft.legalResponsibility !== "joint" || isParentComplete(draft.parent2));
     }
     if (step === 3) {
-      return draft.children.every((child) => child.learningNeeds.length && child.medicalNeeds.length);
+      return draft.children.every(
+        (child) =>
+          child.learningNeeds.length &&
+          child.medicalNeeds.length &&
+          (!needsVaccinationRecords(child.dateOfBirth, draft.academicYear) ||
+            child.vaccinationRecords !== "not-available" ||
+            child.vaccinationAcknowledgement),
+      );
     }
     if (step === 4) {
       return draft.declarations.accuracy &&
@@ -317,12 +344,23 @@ export function ApplicationForm() {
         body: JSON.stringify(draft),
       });
       // A timeout or platform error can return an HTML page instead of JSON.
-      const body = (await response.json().catch(() => ({}))) as { error?: string; reference?: string; dryRun?: boolean };
+      const body = (await response.json().catch(() => ({}))) as { error?: string; reference?: string; dryRun?: boolean; emailed?: boolean };
       if (!response.ok || !body.reference) {
         throw new Error(body.error || "We could not submit the application. Your draft remains on this device; please try again.");
       }
       localStorage.removeItem("ksi-application-draft-v1");
-      setSubmitted({ reference: body.reference, dryRun: Boolean(body.dryRun) });
+      setSubmitted({
+        reference: body.reference,
+        dryRun: Boolean(body.dryRun),
+        emailed: Boolean(body.emailed),
+        email: draft.parent1.email.trim(),
+        academicYear: draft.academicYear,
+        documents: requiredDocuments(draft),
+        children: draft.children.map((child) => ({
+          name: `${child.firstName} ${child.lastName}`.replace(/\s+/g, " ").trim(),
+          group: getSuggestedPlacement(child.dateOfBirth, draft.academicYear)?.group ?? null,
+        })),
+      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We could not submit the application.");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -342,6 +380,7 @@ export function ApplicationForm() {
           <p>Admissions will review your application and contact your family about the next step.</p>
           <div className="reference"><span>Reference</span><strong>{submitted.reference.split("-")[0].toUpperCase()}</strong></div>
           {submitted.dryRun && <Notice tone="raspberry"><strong>Test submission:</strong> the application was validated successfully. Live OpenApply submission is not enabled for this deployment.</Notice>}
+          <NextSteps submitted={submitted} />
         </div>
       </main>
     );
@@ -553,6 +592,27 @@ export function ApplicationForm() {
                     { value: "access-adjustment", label: "Access adjustment" },
                     { value: "other", label: "Another arrangement" },
                   ]} />
+                  {needsVaccinationRecords(child.dateOfBirth, draft.academicYear) && (
+                    <>
+                      <ChoiceGroup
+                        label="Vaccination records"
+                        value={child.vaccinationRecords}
+                        onChange={(value) => patchChild(index, { vaccinationRecords: value, vaccinationAcknowledgement: value === "not-available" && child.vaccinationAcknowledgement })}
+                        compact
+                        options={[
+                          { value: "will-provide", label: "I’ll upload them in OpenApply", note: "Needed for Nursery, Reception and Year 1" },
+                          { value: "not-available", label: "I can’t provide them" },
+                        ]}
+                      />
+                      {child.vaccinationRecords === "not-available" && (
+                        <label className={`acknowledgement ${child.vaccinationAcknowledgement ? "checked" : ""}`}>
+                          <input type="checkbox" checked={child.vaccinationAcknowledgement} onChange={(event) => patchChild(index, { vaccinationAcknowledgement: event.target.checked })} />
+                          <span className="check-box">✓</span>
+                          <span>{VACCINATION_ACKNOWLEDGEMENT}</span>
+                        </label>
+                      )}
+                    </>
+                  )}
                   <div className="field-grid three">
                     <Field label="Attendance"><select value={child.attendance} onChange={(event) => patchChild(index, { attendance: event.target.value as Child["attendance"] })}><option value="regular">Regular</option><option value="some-concern">Some concern</option><option value="significant-concern">Significant concern</option></select></Field>
                     <Field label="Repeated a grade?"><select value={child.repeatedGrade} onChange={(event) => patchChild(index, { repeatedGrade: event.target.value as Child["repeatedGrade"] })}><option value="no">No</option><option value="yes">Yes</option></select></Field>
@@ -576,6 +636,11 @@ export function ApplicationForm() {
                 <ReviewCard title="Main contact" onEdit={() => setStep(2)}><p><strong>{draft.parent1.firstName} {draft.parent1.lastName}</strong><span>{draft.parent1.email} · {draft.parent1.mobile}</span></p><p><span>{draft.legalResponsibility === "joint" ? "Joint parental responsibility" : "Admissions evidence review required"}</span></p></ReviewCard>
                 <ReviewCard title="Support profile" onEdit={() => setStep(3)}><p><strong>{draft.children.length} child{draft.children.length > 1 ? "ren" : ""}</strong><span>Learning, language, health and school history completed</span></p></ReviewCard>
               </div>
+              <DocumentsPanel
+                documents={requiredDocuments(draft)}
+                title="Documents you’ll upload in OpenApply"
+                intro="You don’t need them to submit. After you apply, we’ll send you a link to upload them to your checklist in OpenApply, now or later."
+              />
               <section className="declarations">
                 <div><p className="eyebrow">Declarations</p><h2>Submit with authority and care.</h2></div>
                 <Declaration checked={draft.declarations.accuracy} onChange={(accuracy) => patchDraft("declarations", { ...draft.declarations, accuracy })}>I confirm that the information is accurate and complete to the best of my knowledge.</Declaration>
@@ -641,5 +706,67 @@ function Declaration({ checked, onChange, children }: { checked: boolean; onChan
       <span className="check-box">✓</span>
       <span>{children}</span>
     </label>
+  );
+}
+
+function DocumentsPanel({ documents, title, intro }: { documents: DocumentList; title: string; intro?: string }) {
+  return (
+    <section className="documents-panel">
+      <h2>{title}</h2>
+      {intro && <p>{intro}</p>}
+      <ul>{documents.family.map((item) => <li key={item.key}>{item.label}</li>)}</ul>
+      {documents.children.map((child, index) => (
+        <div key={index}>
+          <h3>{child.name}</h3>
+          <ul>
+            {child.items.map((item) => (
+              <li key={item.key} className={item.status === "acknowledged-missing" ? "acknowledged" : undefined}>{item.label}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function NextSteps({ submitted }: { submitted: Submitted }) {
+  const { openApply } = NEXT_STEPS;
+  return (
+    <section className="next-steps">
+      <p className="next-steps-lead">
+        {submitted.emailed ? <>We’ve emailed these next steps to <strong>{submitted.email}</strong>.</> : "Please keep a note of these next steps."}
+      </p>
+
+      <h2><span>1</span>Upload your documents in OpenApply</h2>
+      <p>
+        Sign in to OpenApply with <strong>{submitted.email}</strong> and upload the documents below to your checklist. First time? Set your
+        password first. You can upload them now or later.
+      </p>
+      <div className="next-steps-actions">
+        <a className="button primary" href={openApply.setPassword} target="_blank" rel="noopener noreferrer">Set your password</a>
+        <a className="button secondary" href={openApply.signIn} target="_blank" rel="noopener noreferrer">Sign in to OpenApply</a>
+      </div>
+      <DocumentsPanel documents={submitted.documents} title="Documents to upload" />
+
+      <h2><span>2</span>Registration payment</h2>
+      <p>
+        To reserve a place and schedule an admissions interview, a registration payment of{" "}
+        <strong>{NEXT_STEPS.registrationFeeEur} EUR per child</strong> is required.
+      </p>
+      <p>
+        <strong>Bank transfer:</strong> email our Finance Office at <a href={`mailto:${NEXT_STEPS.financeEmail}`}>{NEXT_STEPS.financeEmail}</a> with:
+      </p>
+      <ul>{NEXT_STEPS.bankTransferDetails.map((detail) => <li key={detail}>{detail}</li>)}</ul>
+      <p>Please use this email subject:</p>
+      <ul className="payment-subjects">
+        {submitted.children.map((child, index) => <li key={index}>{paymentSubject(submitted.academicYear, child.name, child.group)}</li>)}
+      </ul>
+      <p>
+        <strong>Credit card:</strong> at the school reception. An additional {NEXT_STEPS.cardFeePercent}% fee applies to card payments.
+      </p>
+      <p>
+        Questions? Email <a href={`mailto:${NEXT_STEPS.admissionsEmail}`}>{NEXT_STEPS.admissionsEmail}</a>. We are here to help.
+      </p>
+    </section>
   );
 }

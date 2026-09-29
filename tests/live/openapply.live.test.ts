@@ -110,6 +110,8 @@ describe.runIf(live)("live OpenApply regression (ZZTEST records)", () => {
       throw new Error(`Set OPENAPPLY_LIVE_CONFIRM_HOST=${host} to confirm writing test records to this tenant.`);
     }
     if (process.env.OPENAPPLY_DRY_RUN?.trim().toLowerCase() !== "false") throw new Error("Set OPENAPPLY_DRY_RUN=false for the live suite.");
+    // The test families use undeliverable @example.com addresses; never send them confirmation emails.
+    process.env.BREVO_API_KEY = "";
     client = new OpenApplyClient(config);
     return () => {
       const ids = { run, parents: [...created.parents], students: [...created.students] };

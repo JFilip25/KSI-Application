@@ -17,13 +17,28 @@ import {
 } from "./mapping";
 import { resolveFieldTargets, type FieldTargets, type StudentFieldKey } from "./tenant";
 
+/** "not-needed": nothing was newly moved to Applied (e.g. a resubmission), so no email was due. */
+export type ConfirmationEmailStatus = "sent" | "skipped" | "failed" | "not-needed";
+
 export type PushResult = {
   reference: string;
   dryRun: boolean;
   parentIds: number[];
   studentIds: number[];
+  confirmationEmail: ConfirmationEmailStatus;
   /** Non-fatal issues for the server log (never shown to families). */
   warnings: string[];
+};
+
+/** Given to `onApplied` once for a submission that moved at least one student to Applied. */
+export type AppliedEvent = {
+  application: ApplicationData;
+  reference: string;
+  shortReference: string;
+  /** Parents linked to the children by this submission. */
+  parents: { email: string; firstName: string; lastName: string }[];
+  /** Every child in the submission with their OpenApply student ID. */
+  children: { child: ApplicationData["children"][number]; studentId: number }[];
 };
 
 export type PushOptions = {
@@ -32,6 +47,11 @@ export type PushOptions = {
   /** Total time for one submission, kept below the route's maxDuration. */
   budgetMs?: number;
   submittedAt?: Date;
+  /**
+   * OpenApply sends no status emails for API changes, so the caller emails the family here.
+   * Failures are logged and never fail the submission.
+   */
+  onApplied?: (event: AppliedEvent) => Promise<"sent" | "skipped">;
 };
 
 const DEFAULT_BUDGET_MS = 50_000;
@@ -92,7 +112,7 @@ export async function pushApplication(application: ApplicationData, options: Pus
   // Built in test mode too, so mapping problems surface before live submissions are enabled.
   const plan = buildSubmissionPlan(application, options.submittedAt);
   if (isDryRun(env)) {
-    return { reference: plan.reference, dryRun: true, parentIds: [], studentIds: [], warnings: targets.warnings };
+    return { reference: plan.reference, dryRun: true, parentIds: [], studentIds: [], confirmationEmail: "skipped", warnings: targets.warnings };
   }
 
   for (const [reference, entry] of completed) {
@@ -106,7 +126,7 @@ export async function pushApplication(application: ApplicationData, options: Pus
   const config = readConfig(env);
   const client = options.client ?? clientFor(config);
   const deadline = deadlineIn(options.budgetMs ?? DEFAULT_BUDGET_MS);
-  const promise = enqueue(plan, deadline, () => execute(plan, targets, client, deadline));
+  const promise = enqueue(plan, deadline, () => execute(plan, targets, client, deadline, options.onApplied));
   inflight.set(plan.reference, promise);
   try {
     const result = await promise;
@@ -146,7 +166,13 @@ function enqueue<T>(plan: SubmissionPlan, deadline: Deadline, task: () => Promis
   return run;
 }
 
-async function execute(plan: SubmissionPlan, targets: FieldTargets, client: OpenApplyClient, deadline: Deadline): Promise<PushResult> {
+async function execute(
+  plan: SubmissionPlan,
+  targets: FieldTargets,
+  client: OpenApplyClient,
+  deadline: Deadline,
+  onApplied: PushOptions["onApplied"],
+): Promise<PushResult> {
   const started = Date.now();
   const ctx: RequestContext = { deadline, stats: { calls: 0, retries: 0, rateLimited: 0 }, redact: plan.redact };
   const warnings = [...targets.warnings];
@@ -181,15 +207,18 @@ async function execute(plan: SubmissionPlan, targets: FieldTargets, client: Open
     const summarySlug = await summaryFieldSlug(client, ctx, targets);
     const students = await resolveStudents(client, ctx, plan, parents, summarySlug, warnings);
     await linkParents(client, ctx, parents, students, warnings);
-    await markApplied(client, ctx, students, warnings);
+    const newlyApplied = await markApplied(client, ctx, students, warnings);
     await writeStudentFields(client, ctx, plan, students, targets, notes, warnings);
     await writeParentFields(client, ctx, plan, parents, targets, warnings);
+    // A resubmission finds its students already Applied, so the family is emailed only once.
+    const confirmationEmail = newlyApplied > 0 ? await notifyApplied(plan, parents, students, onApplied, warnings) : "not-needed";
 
     const result: PushResult = {
       reference: plan.reference,
       dryRun: false,
       parentIds: parents.map((parent) => parent.id),
       studentIds: students.map((student) => student.id),
+      confirmationEmail,
       warnings,
     };
     log("info", {
@@ -199,6 +228,7 @@ async function execute(plan: SubmissionPlan, targets: FieldTargets, client: Open
       studentIds: result.studentIds,
       createdParents: parents.filter((parent) => parent.created).length,
       createdStudents: students.filter((student) => student.created).length,
+      confirmationEmail,
       ...ctx.stats,
       ms: Date.now() - started,
       warnings,
@@ -400,17 +430,49 @@ async function linkParents(
   }
 }
 
+/** Returns how many students this submission moved to Applied. */
 async function markApplied(client: OpenApplyClient, ctx: RequestContext, students: readonly ResolvedStudent[], warnings: string[]) {
+  let applied = 0;
   for (const student of students) {
     if (!student.needsApplied) continue;
     try {
       await api.setStudentStatus(client, ctx, student.id, "applied");
+      applied += 1;
     } catch (error) {
       // Records and links are complete; Admissions can move the status by hand.
       if (!(error instanceof OpenApplyError) || error.kind !== "rejected") throw error;
       warnings.push("status_not_updated");
       log("warn", { evt: "openapply.status_rejected", studentId: student.id, error: error.toLog() });
     }
+  }
+  return applied;
+}
+
+async function notifyApplied(
+  plan: SubmissionPlan,
+  parents: readonly ResolvedParent[],
+  students: readonly ResolvedStudent[],
+  onApplied: PushOptions["onApplied"],
+  warnings: string[],
+): Promise<ConfirmationEmailStatus> {
+  if (!onApplied) return "skipped";
+  const event: AppliedEvent = {
+    application: plan.application,
+    reference: plan.reference,
+    shortReference: plan.shortReference,
+    parents: parents.map((parent) => ({
+      email: parent.plan.payload.email,
+      firstName: parent.plan.payload.first_name,
+      lastName: parent.plan.payload.last_name,
+    })),
+    children: students.map((student) => ({ child: student.plan.source, studentId: student.id })),
+  };
+  try {
+    return await onApplied(event);
+  } catch (error) {
+    warnings.push("confirmation_email_failed");
+    log("warn", { evt: "openapply.confirmation_email_failed", ref: plan.shortReference, error: errorForLog(error) });
+    return "failed";
   }
 }
 

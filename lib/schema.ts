@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { needsVaccinationRecords } from "./documents";
 import { ACADEMIC_YEARS } from "./placement";
 
 const requiredText = z.string().trim().min(1, "Required").max(120);
@@ -26,6 +27,9 @@ export const ChildSchema = z.object({
   repeatedGrade: z.enum(["no", "yes"]),
   seriousDiscipline: z.enum(["no", "yes-current-school", "yes-previous-school"]),
   disclosureNote: z.string().trim().max(500).default(""),
+  // Asked only for Nursery, Reception and Year 1; defaults keep drafts saved before this existed valid.
+  vaccinationRecords: z.enum(["will-provide", "not-available"]).default("will-provide"),
+  vaccinationAcknowledgement: z.boolean().default(false),
 });
 
 export const ParentSchema = z.object({
@@ -67,6 +71,17 @@ export const ApplicationSchema = z.object({
   value.children.forEach((child, index) => {
     if (child.homeLanguage === "Other / not listed" && !child.otherHomeLanguage) {
       ctx.addIssue({ code: "custom", path: ["children", index, "otherHomeLanguage"], message: "Enter the language." });
+    }
+    if (
+      needsVaccinationRecords(child.dateOfBirth, value.academicYear) &&
+      child.vaccinationRecords === "not-available" &&
+      !child.vaccinationAcknowledgement
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["children", index, "vaccinationAcknowledgement"],
+        message: "Please confirm the vaccination records acknowledgement.",
+      });
     }
   });
 });

@@ -63,7 +63,7 @@ describe("POST /api/applications", () => {
     const application = makeApplication();
     const { response, body } = await call(request(application));
     expect(response.status).toBe(201);
-    expect(body).toEqual({ reference: application.applicationReference, dryRun: true });
+    expect(body).toEqual({ reference: application.applicationReference, dryRun: true, emailed: false });
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
@@ -73,9 +73,33 @@ describe("POST /api/applications", () => {
     const application = makeApplication();
     const { response, body } = await call(request(application));
     expect(response.status).toBe(201);
-    expect(body).toEqual({ reference: application.applicationReference, dryRun: false });
+    expect(body).toEqual({ reference: application.applicationReference, dryRun: false, emailed: false });
     expect(fake.students.size).toBe(1);
     expect(fake.parents.size).toBe(2);
+  });
+
+  it("emails each parent through Brevo and tells the thank-you page", async () => {
+    const fake = new FakeOpenApply();
+    for (const [key, value] of Object.entries(fake.env({ BREVO_API_KEY: "test-key" }))) vi.stubEnv(key, value);
+    const recipients: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof URL ? input.href : typeof input === "string" ? input : input.url;
+      if (url.startsWith("https://api.brevo.com/")) {
+        recipients.push(JSON.parse(String(init?.body)).to[0].email);
+        return new Response(JSON.stringify({ messageId: "<m@smtp-relay.mailin.fr>" }), { status: 201 });
+      }
+      return fake.fetch(input, init);
+    });
+    const application = makeApplication();
+    const { response, body } = await call(request(application));
+    expect(response.status).toBe(201);
+    expect(body).toEqual({ reference: application.applicationReference, dryRun: false, emailed: true });
+    expect(recipients).toEqual(["alex.example@example.com", "jordan.example@example.com"]);
+
+    // Submitting the same application again saves nothing new and sends no second email.
+    const again = await call(request(application));
+    expect(again.body.emailed).toBe(true);
+    expect(recipients).toHaveLength(2);
   });
 
   it("asks the family to contact Admissions when OpenApply refuses the credentials", async () => {

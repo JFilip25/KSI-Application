@@ -1,3 +1,4 @@
+import { documentLines, needsVaccinationRecords, requiredDocuments } from "../documents";
 import { getSuggestedPlacement } from "../placement";
 import type { ApplicationData } from "../schema";
 import type { OARelationship, OAStudent, ParentCreate, StudentCreate } from "./api";
@@ -372,6 +373,12 @@ export function buildStudentSummary(plan: SubmissionPlan, child: PlannedChild, n
   const medicalNeeds = source.medicalNeeds.filter((need) => need !== NO_MEDICAL_NEEDS);
   const siblings = plan.children.filter((other) => other !== child).map((other) => `${other.payload.first_name} ${other.payload.last_name}`);
   const submitted = plan.submittedAt.toISOString().replace("T", " ").slice(0, 16);
+  const documents = documentLines(requiredDocuments(application), application.children.indexOf(source));
+  const vaccination = needsVaccinationRecords(source.dateOfBirth, application.academicYear)
+    ? source.vaccinationRecords === "not-available"
+      ? "Vaccination records: NOT PROVIDED — the parent acknowledged that they have not provided the school with vaccination records and that the family may be fined by the Montenegrin authorities."
+      : "Vaccination records: to be uploaded in OpenApply"
+    : "";
 
   const lines = [
     `KSI Montenegro online application · ref ${plan.shortReference} · submitted ${submitted} UTC`,
@@ -393,6 +400,7 @@ export function buildStudentSummary(plan: SubmissionPlan, child: PlannedChild, n
     `Health or access needs: ${medicalNeeds.length ? medicalNeeds.join("; ") : NO_MEDICAL_NEEDS} · School planning: ${
       LABELS.medicalAction[source.medicalAction]
     }`,
+    vaccination,
     `Attendance: ${LABELS.attendance[source.attendance]} · Repeated a grade: ${LABELS.repeatedGrade[source.repeatedGrade]} · Serious disciplinary action: ${
       LABELS.seriousDiscipline[source.seriousDiscipline]
     }`,
@@ -407,6 +415,7 @@ export function buildStudentSummary(plan: SubmissionPlan, child: PlannedChild, n
     application.parent2 ? `Parent/guardian 2: ${formatParent(application.parent2)}` : "",
     `Consents: Google Workspace for Education — given · Marketing (photo/video) — ${LABELS.marketingConsent[application.declarations.marketingConsent]}`,
     siblings.length ? `Siblings in this application: ${siblings.join(", ")}` : "",
+    `Documents requested (the family uploads them in OpenApply):\n${documents.join("\n")}`,
     ...notes,
     `Full reference: ${plan.reference}`,
   ];

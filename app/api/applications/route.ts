@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sendConfirmation } from "@/lib/email/confirmation";
 import { ApplicationSchema } from "@/lib/schema";
 import { OpenApplyError, pushApplication } from "@/lib/openapply";
 
@@ -47,8 +48,8 @@ export async function POST(request: Request) {
 
   const shortReference = parsed.data.applicationReference.split("-")[0].toUpperCase();
   try {
-    const result = await pushApplication(parsed.data);
-    return reply({ reference: result.reference, dryRun: result.dryRun }, 201);
+    const result = await pushApplication(parsed.data, { onApplied: (event) => sendConfirmation(event) });
+    return reply({ reference: result.reference, dryRun: result.dryRun, emailed: result.confirmationEmail === "sent" }, 201);
   } catch (error) {
     if (error instanceof OpenApplyError) {
       // pushApplication has already logged the details.

@@ -10,6 +10,8 @@ A focused, mobile-first application for Knightsbridge Schools International Mont
 - Lets one family apply for up to five siblings without repeating parent details.
 - Uses structured choices for learning, medical, attendance and disciplinary information.
 - Routes joint, sole, restricted, deceased and uncontactable-parent situations without asking families to upload evidence at the application stage.
+- Tells each family exactly which documents to upload in OpenApply afterwards, and records a vaccination-records acknowledgement for Nursery, Reception and Year 1.
+- Emails the family KSI's "Applied" confirmation with payment steps, links to each child's applicant page and their document list.
 - Captures mandatory Google Workspace for Education consent and a separate Yes/No marketing choice.
 - Saves an in-progress draft only in the family's browser.
 - Keeps OpenApply credentials and API traffic on the server.
@@ -39,6 +41,7 @@ Open `http://localhost:3000`.
 | `OPENAPPLY_CLIENT_SECRET` | OAuth client secret; server-only |
 | `OPENAPPLY_DRY_RUN` | `false` for live submissions; anything else is test mode |
 | `OPENAPPLY_CUSTOM_FIELD_MAP` | Optional overrides for the built-in field map (see below); leave empty or `{}` |
+| `BREVO_API_KEY` | Brevo API key (Settings → SMTP & API → API keys) used to send the confirmation email; without it the email is skipped and logged |
 
 Never expose these as `NEXT_PUBLIC_*` variables. Rotate any credential that has been shared in chat, email, tickets or source code, then update Vercel and redeploy.
 
@@ -49,12 +52,39 @@ The server validates the payload with Zod and then, in this order:
 1. Finds each parent by email (`/parents/search`) or creates them. A parent 2 with the same email as parent 1 is kept in the summary instead; so is parent 2 when a court order or restriction is declared, because linking a parent gives them portal access — Admissions adds them after following up.
 2. Finds each child among the family's existing students (and records left unlinked by an earlier failed attempt), matching name and date of birth; otherwise creates the student as `pending` with first/last/preferred name, date of birth, gender (OpenApply accepts only Male/Female), suggested year group, enrolment year and the family's country of residence.
 3. Links every parent to every child with their role (mother, father, stepmother, stepfather, legal guardian, other guardian). OpenApply replaces a parent's whole set of links on update, so existing children are always kept.
-4. Moves new students to `applied`, so OpenApply's own "applied" status event fires with the parents attached. An existing enquiry for the same child becomes an application; a child who is already further along keeps their status and data.
+4. Moves new students to `applied` once the parents are linked, so OpenApply's status history and reports show the application. An existing enquiry for the same child becomes an application; a child who is already further along keeps their status and data.
 5. Writes KSI's existing custom fields and a readable summary of every answer (below). These writes never fail a submission: if OpenApply refuses a value, the free-text answers and the summary are still saved and the problem is logged.
+6. Emails the family (see *Confirmation email*), but only when this submission moved a student to Applied, so a retry or resubmission never sends a second email.
 
 Submitting again — a retry after an error, a double click, or a resubmission from another device — finds the same records instead of creating duplicates.
 
 OpenApply allows 5 API requests per 2 seconds. The server paces its requests, waits out any `429` using OpenApply's reset time, retries temporary failures on reads and full-state updates, and never blindly repeats a create (it looks the record up first). A typical family takes 8–15 requests and 3–8 seconds; the route allows up to 60 seconds. If OpenApply stays busy the family sees "please try again in a minute" (HTTP 503) before anything is written; if OpenApply rejects the application the family is asked to contact Admissions with their reference.
+
+### Confirmation email
+
+OpenApply does not send its status emails when a status is changed through the API (verified on the KSI tenant: the activity log only shows "marked as Applied by …"). The app therefore sends KSI's "Applied" confirmation itself, through Brevo's transactional API, from "KSI Montenegro" <f.jankovic@ksi-montenegro.com> (the verified Brevo sender; ksi-montenegro.com has Brevo DKIM set up). Each linked parent gets one email listing every child, with:
+
+- the applicant page link for each child (`https://ksimontenegro.openapply.com/dashboard/<student id>`) and a link to set their OpenApply password the first time (`/parents/password/new`);
+- the family's document list (below);
+- the registration payment steps, with Finance's subject line pre-filled for each child;
+- Admissions contacts and the application reference.
+
+The wording follows KSI's OpenApply template and lives in `lib/next-steps.ts` and `lib/email/confirmation.ts`; the thank-you page shows the same next steps, so a family still has them if the email is delayed. If Brevo is not configured or rejects the email, the application is still saved and the problem is logged (`confirmationEmail` in the `openapply.push` log line). Brevo's free plan allows 300 emails a day; its transactional log shows every email sent.
+
+### Documents
+
+OpenApply's API cannot receive files, so families upload documents to their OpenApply checklist after applying (the email and thank-you page link there). The app works out the list from the answers (`lib/documents.ts`), shows it on the review step, the thank-you page and in the email, and records it in the OpenApply summary:
+
+| Document | Asked for when |
+| --- | --- |
+| Parent/guardian 1 passport copy | Always |
+| Parent/guardian 2 passport copy | Parent 2's details were given and no court order or restriction was declared |
+| Child's passport copy and birth certificate | Every child |
+| Signed consent from the other parent | Family situation is "separated" or "divorced" |
+| Vaccination records | The suggested year group is Nursery, Reception or Year 1. A family that can't provide them must tick an acknowledgement that they have not provided the records and that the family may be fined by the Montenegrin authorities; the summary records it |
+| School reports / transcripts from the last two years | The child is 12 or older on 1 September of the chosen academic year |
+
+For uploads to tick items off, OpenApply's checklist (Settings → Checklist) needs matching "Document Submission" items.
 
 ### Fields written
 

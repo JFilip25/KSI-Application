@@ -317,3 +317,39 @@ describe("OPENAPPLY_CUSTOM_FIELD_MAP overrides", () => {
     expect(targets.warnings[0]).toMatch(/not valid JSON/);
   });
 });
+
+describe("summary documents", () => {
+  it("records the documents requested and the vaccination answer for each child", () => {
+    const application = makeApplication({
+      familySituation: "separated",
+      children: [
+        makeChild({ firstName: "Mila", dateOfBirth: "2022-03-10", vaccinationRecords: "not-available", vaccinationAcknowledgement: true }),
+        makeChild({ firstName: "Luka", dateOfBirth: "2013-05-20" }),
+      ],
+    });
+    const plan = buildSubmissionPlan(application);
+    const mila = buildStudentSummary(plan, plan.children[0]);
+    expect(mila).toContain("Vaccination records: NOT PROVIDED — the parent acknowledged that they have not provided the school with vaccination records");
+    expect(mila).toContain(
+      [
+        "Documents requested (the family uploads them in OpenApply):",
+        "- Passport copy — Alex Example",
+        "- Passport copy — Jordan Example",
+        "- Signed consent to this application from the other parent",
+        "- Mila Example: Passport copy",
+        "- Mila Example: Birth certificate",
+        "- Mila Example: Vaccination records — not provided (acknowledged)",
+      ].join("\n"),
+    );
+    expect(mila).not.toContain("Luka Example: Passport copy");
+
+    const luka = buildStudentSummary(plan, plan.children[1]);
+    expect(luka).toContain("- Luka Example: School reports / transcripts from the last two school years");
+    expect(luka).not.toContain("Vaccination records:");
+  });
+
+  it("notes when vaccination records will be uploaded", () => {
+    const plan = buildSubmissionPlan(makeApplication({ children: [makeChild({ dateOfBirth: "2023-01-10" })] }));
+    expect(buildStudentSummary(plan, plan.children[0])).toContain("Vaccination records: to be uploaded in OpenApply");
+  });
+});

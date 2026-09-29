@@ -27,6 +27,8 @@ export function makeChild(overrides: Partial<Child> = {}): Child {
     repeatedGrade: "no",
     seriousDiscipline: "no",
     disclosureNote: "",
+    vaccinationRecords: "will-provide",
+    vaccinationAcknowledgement: false,
     ...overrides,
   };
 }
