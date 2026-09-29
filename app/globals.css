@@ -247,6 +247,7 @@ input:invalid:not(:focus):not(:placeholder-shown) { border-color: var(--red); }
 .button.submit { min-width: 205px; background: var(--raspberry); border-color: var(--raspberry); }
 .flip { transform: rotate(180deg); }
 .privacy-footnote { margin: 19px 0 0; text-align: right; color: var(--muted); font-size: 11px; }
+.submit-hint { margin-top: 14px; text-align: right; }
 
 .error-banner { margin: 0 0 30px; padding: 16px 18px; border-left: 4px solid var(--red); background: #fff0f1; color: #852034; display: grid; gap: 3px; font-size: 13px; }
 .error-banner strong { color: #621425; }

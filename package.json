@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:stress": "OPENAPPLY_STRESS=1 vitest run tests/stress",
+    "test:live": "OPENAPPLY_LIVE_TEST=1 vitest run tests/live",
+    "openapply:generate": "node scripts/generate-openapply-data.mjs"
   },
   "dependencies": {
     "next": "16.3.5",

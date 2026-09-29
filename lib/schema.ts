@@ -31,7 +31,8 @@ export const ChildSchema = z.object({
 export const ParentSchema = z.object({
   firstName: requiredText,
   lastName: requiredText,
-  relationship: z.enum(["mother", "father", "step-parent", "legal-guardian", "other-guardian"]),
+  // "step-parent" is kept so drafts saved before Stepmother/Stepfather existed still validate.
+  relationship: z.enum(["mother", "father", "stepmother", "stepfather", "step-parent", "legal-guardian", "other-guardian"]),
   email: z.string().trim().email(),
   mobile: z.string().trim().min(7).max(30),
   country: z.string().length(2),

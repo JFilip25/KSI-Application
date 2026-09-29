@@ -316,8 +316,11 @@ export function ApplicationForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(draft),
       });
-      const body = (await response.json()) as { error?: string; reference?: string; dryRun?: boolean };
-      if (!response.ok || !body.reference) throw new Error(body.error || "Submission failed.");
+      // A timeout or platform error can return an HTML page instead of JSON.
+      const body = (await response.json().catch(() => ({}))) as { error?: string; reference?: string; dryRun?: boolean };
+      if (!response.ok || !body.reference) {
+        throw new Error(body.error || "We could not submit the application. Your draft remains on this device; please try again.");
+      }
       localStorage.removeItem("ksi-application-draft-v1");
       setSubmitted({ reference: body.reference, dryRun: Boolean(body.dryRun) });
     } catch (caught) {
@@ -607,6 +610,7 @@ export function ApplicationForm() {
             {step > 0 ? <button type="button" className="button secondary" onClick={() => { setError(""); setStep(step - 1); }}><Arrow direction="left" />Back</button> : <span />}
             {step < STEPS.length - 1 ? <button type="button" className="button primary" onClick={next}>Continue<Arrow /></button> : <button type="button" className="button primary submit" onClick={submit} disabled={submitting}>{submitting ? "Submitting…" : "Submit application"}<Arrow /></button>}
           </div>
+          {submitting && <p className="field-hint submit-hint" role="status">Sending your application to Admissions. This can take up to a minute; please keep this page open.</p>}
         </div>
       </main>
     </div>
@@ -618,7 +622,7 @@ function ParentFields({ parent, countries, onChange }: { parent: Parent; countri
     <div className="field-grid two">
       <Field label="First name" translation="Ime"><input value={parent.firstName} onChange={(event) => onChange({ ...parent, firstName: event.target.value })} required /></Field>
       <Field label="Last name" translation="Prezime"><input value={parent.lastName} onChange={(event) => onChange({ ...parent, lastName: event.target.value })} required /></Field>
-      <Field label="Relationship to child" translation="Odnos sa djetetom"><select value={parent.relationship} onChange={(event) => onChange({ ...parent, relationship: event.target.value as Parent["relationship"] })}><option value="mother">Mother</option><option value="father">Father</option><option value="step-parent">Step-parent</option><option value="legal-guardian">Legal guardian</option><option value="other-guardian">Other guardian</option></select></Field>
+      <Field label="Relationship to child" translation="Odnos sa djetetom"><select value={parent.relationship} onChange={(event) => onChange({ ...parent, relationship: event.target.value as Parent["relationship"] })}><option value="mother">Mother</option><option value="father">Father</option><option value="stepmother">Stepmother</option><option value="stepfather">Stepfather</option>{parent.relationship === "step-parent" && <option value="step-parent">Step-parent</option>}<option value="legal-guardian">Legal guardian</option><option value="other-guardian">Other guardian</option></select></Field>
       <Field label="Country of residence" translation="Država prebivališta"><select value={parent.country} onChange={(event) => onChange({ ...parent, country: event.target.value })}>{countries.map((country) => <option value={country.code} key={country.code}>{country.name}</option>)}</select></Field>
       <Field label="Email" translation="Email adresa"><input type="email" autoComplete="email" value={parent.email} onChange={(event) => onChange({ ...parent, email: event.target.value })} required /></Field>
       <Field label="Mobile number" translation="Broj telefona"><input type="tel" autoComplete="tel" value={parent.mobile} onChange={(event) => onChange({ ...parent, mobile: event.target.value })} required /></Field>
